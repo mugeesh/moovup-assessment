@@ -10,7 +10,8 @@ Create a file named `.env` under the root
 REACT_APP_GOOGLE_API_KEY=https://iam.staging.energybox.com
 REACT_APP_FRIENDS_API=http://localhost:8081/friend-location-api/all
 ```
-* setup and start friendsApi repo.
+* setup and start BE API [friendsApi](https://github.com/mugeesh/moovup-assessment/tree/main/Question_2/friendsApi).
+
 * `yarn install`
 * `yarn start`
 

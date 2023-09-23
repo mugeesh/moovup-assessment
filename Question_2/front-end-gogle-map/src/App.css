@@ -1,0 +1,54 @@
+.friend-profile {
+  display: flex;
+  align-items: center;
+}
+
+.friend-profile img {
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  margin-right: 10px;
+}
+
+#map {
+  height: 400px;
+  width: 100%;
+}
+.container {
+  display: flex;
+  border: 2px solid #000; /* Add a border on all sides */
+}
+.friends-list {
+  width: 20%;
+  padding: 10px;
+  border: 2px solid #000;
+  height: 600px;
+  overflow-y: auto;
+}
+
+.map-container {
+  width: 80%;
+  padding: 10px;
+  border: 2px solid #000;
+}
+
+.display-container {
+  width: 100%;
+  padding: 10px;
+}
+
+
+.details {
+  display: flex;
+  align-items: center;
+}
+
+.details img {
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  margin-right: 10px;
+}
+.dName {
+  font-weight: bold;
+}
