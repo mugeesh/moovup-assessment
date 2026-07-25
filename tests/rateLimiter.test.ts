@@ -2,7 +2,8 @@ import {describe, it, expect} from "@jest/globals";
 import {
     create_rate_limiter,
     allow_request,
-    get_bucket_state
+    get_bucket_state,
+    retry_after_seconds
 } from "../src/rateLimiter.js";
 
 describe("leaky bucket rate limiter", () => {
@@ -81,5 +82,51 @@ describe("leaky bucket rate limiter", () => {
         let limiter = create_rate_limiter(5, 1.0);
         allow_request(limiter, "user1", 0);
         expect(get_bucket_state(limiter, "user1")).toBeNull();
+    });
+
+    it("rejects an invalid capacity or leak rate", () => {
+        expect(() => create_rate_limiter(0, 1.0)).toThrow(RangeError);
+        expect(() => create_rate_limiter(-1, 1.0)).toThrow(RangeError);
+        expect(() => create_rate_limiter(Number.NaN, 1.0)).toThrow(RangeError);
+        expect(() => create_rate_limiter(5, 0)).toThrow(RangeError);
+        expect(() => create_rate_limiter(5, Number.NaN)).toThrow(RangeError);
+    });
+
+    it("does not rewind the clock when a request arrives out of order", () => {
+        let limiter = create_rate_limiter(5, 1.0);
+
+        [, limiter] = allow_request(limiter, "u", 100);
+        [, limiter] = allow_request(limiter, "u", 90);
+
+        expect(get_bucket_state(limiter, "u")?.lastTimestamp).toBe(100);
+        expect(get_bucket_state(limiter, "u")?.level).toBe(2);
+
+        [, limiter] = allow_request(limiter, "u", 101);
+        expect(get_bucket_state(limiter, "u")?.level).toBe(2);
+    });
+
+    it("reports the leaked level when get_bucket_state is given a timestamp", () => {
+        let limiter = create_rate_limiter(5, 1.0);
+
+        [, limiter] = allow_request(limiter, "u", 0);
+        [, limiter] = allow_request(limiter, "u", 0);
+
+        expect(get_bucket_state(limiter, "u")?.level).toBe(2);
+        expect(get_bucket_state(limiter, "u", 1)?.level).toBe(1);
+        expect(get_bucket_state(limiter, "u", 10)?.level).toBe(0);
+        expect(get_bucket_state(limiter, "ghost", 10)).toBeNull();
+    });
+
+    it("reports how long until a rejected request would be allowed", () => {
+        let limiter = create_rate_limiter(2, 0.5);
+
+        [, limiter] = allow_request(limiter, "u", 0);
+        expect(retry_after_seconds(limiter, "u", 0)).toBe(0);
+
+        [, limiter] = allow_request(limiter, "u", 0);
+        expect(retry_after_seconds(limiter, "u", 0)).toBe(2);
+
+        const [allowed] = allow_request(limiter, "u", 2);
+        expect(allowed).toBe(true);
     });
 });
