@@ -21,6 +21,10 @@ export const openapiSpec = {
         responses: {
           "200": {
             description: "Request allowed",
+            headers: {
+              "X-RateLimit-Limit": { $ref: "#/components/headers/XRateLimitLimit" },
+              "X-RateLimit-Remaining": { $ref: "#/components/headers/XRateLimitRemaining" }
+            },
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/RequestResult" }
@@ -29,6 +33,14 @@ export const openapiSpec = {
           },
           "429": {
             description: "Request rejected (bucket overflow)",
+            headers: {
+              "X-RateLimit-Limit": { $ref: "#/components/headers/XRateLimitLimit" },
+              "X-RateLimit-Remaining": { $ref: "#/components/headers/XRateLimitRemaining" },
+              "Retry-After": {
+                description: "Whole seconds until the bucket has leaked room for this request.",
+                schema: { type: "integer", minimum: 0 }
+              }
+            },
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/RequestResult" }
@@ -49,6 +61,8 @@ export const openapiSpec = {
     "/buckets/{userId}": {
       get: {
         summary: "Get bucket state for a user",
+        description:
+          "Returns the bucket as it stands at the time of the call, with elapsed leaking applied.",
         parameters: [
           {
             name: "userId",
@@ -79,6 +93,16 @@ export const openapiSpec = {
     }
   },
   components: {
+    headers: {
+      XRateLimitLimit: {
+        description: "Bucket capacity.",
+        schema: { type: "integer" }
+      },
+      XRateLimitRemaining: {
+        description: "Whole units of room left in the bucket after this request.",
+        schema: { type: "integer", minimum: 0 }
+      }
+    },
     schemas: {
       RequestInput: {
         type: "object",

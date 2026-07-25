@@ -34,4 +34,36 @@ describe("REST API", () => {
     const res = await request(app).get("/buckets/nobody");
     expect(res.status).toBe(404);
   });
+
+  it("advertises the limit and remaining budget on every decision", async () => {
+    const app = createServer(5, 1.0);
+
+    const res = await request(app).post("/requests").send({ user_id: "headers", timestamp: 0 });
+
+    expect(res.headers["x-ratelimit-limit"]).toBe("5");
+    expect(res.headers["x-ratelimit-remaining"]).toBe("4");
+    expect(res.headers["retry-after"]).toBeUndefined();
+  });
+
+  it("sends Retry-After when it rejects a request", async () => {
+    const app = createServer(2, 0.5);
+
+    await request(app).post("/requests").send({ user_id: "slow", timestamp: 0 });
+    await request(app).post("/requests").send({ user_id: "slow", timestamp: 0 });
+    const res = await request(app).post("/requests").send({ user_id: "slow", timestamp: 0 });
+
+    expect(res.status).toBe(429);
+    expect(res.headers["retry-after"]).toBe("2");
+    expect(res.headers["x-ratelimit-remaining"]).toBe("0");
+  });
+
+  it("reports a bucket that has drained since the last request", async () => {
+    const app = createServer(5, 1.0);
+
+    await request(app).post("/requests").send({ user_id: "drained", timestamp: 0 });
+    const res = await request(app).get("/buckets/drained");
+
+    expect(res.status).toBe(200);
+    expect(res.body.bucket.level).toBe(0);
+  });
 });

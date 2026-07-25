@@ -4,6 +4,7 @@ import {
   create_rate_limiter,
   allow_request,
   get_bucket_state,
+  retry_after_seconds,
   type RateLimiter
 } from "./rateLimiter.js";
 import { openapiSpec } from "./openapi.js";
@@ -46,15 +47,19 @@ export function createServer(capacity: number, leakRate: number): Express {
     const [allowed, next] = allow_request(limiter, userId, timestamp);
     limiter = next;
 
-    return res.status(allowed ? 200 : 429).json({
-      allowed,
-      user_id: userId,
-      bucket: get_bucket_state(limiter, userId)
-    });
+    const bucket = get_bucket_state(limiter, userId)!;
+    res.set("X-RateLimit-Limit", String(capacity));
+    res.set("X-RateLimit-Remaining", String(Math.max(0, Math.floor(capacity - bucket.level))));
+
+    if (!allowed) {
+      res.set("Retry-After", String(Math.ceil(retry_after_seconds(limiter, userId, timestamp))));
+    }
+
+    return res.status(allowed ? 200 : 429).json({ allowed, user_id: userId, bucket });
   });
 
   app.get("/buckets/:userId", (req, res) => {
-    const bucket = get_bucket_state(limiter, req.params.userId);
+    const bucket = get_bucket_state(limiter, req.params.userId, nowSeconds());
     if (bucket === null) {
       return res.status(404).json({ error: "user not found" });
     }
