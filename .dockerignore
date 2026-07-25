@@ -1,0 +1,9 @@
+node_modules
+dist
+tests
+.git
+.github
+.idea
+*.log
+README.md
+backend-4.md

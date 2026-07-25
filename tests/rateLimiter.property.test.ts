@@ -19,21 +19,24 @@ const eventsArb = fc.array(eventArb, { maxLength: 60 });
 
 type Event = { userId: string; timestamp: number };
 
-function replay(limiter: RateLimiter, events: readonly Event[]): [RateLimiter, number] {
-  return events.reduce<[RateLimiter, number]>(
-    ([current, allowedCount], event) => {
-      const [allowed, next] = allow_request(current, event.userId, event.timestamp);
-      return [next, allowedCount + (allowed ? 1 : 0)];
-    },
-    [limiter, 0]
-  );
+function replay(limiter: RateLimiter, events: readonly Event[]) {
+  let current = limiter;
+  let allowed = 0;
+
+  for (const event of events) {
+    const [ok, next] = allow_request(current, event.userId, event.timestamp);
+    current = next;
+    if (ok) allowed++;
+  }
+
+  return { limiter: current, allowed };
 }
 
 describe("leaky bucket properties", () => {
   it("keeps every bucket level within [0, capacity]", () => {
     fc.assert(
       fc.property(capacityArb, leakRateArb, eventsArb, (capacity, leakRate, events) => {
-        const [limiter] = replay(create_rate_limiter(capacity, leakRate), events);
+        const { limiter } = replay(create_rate_limiter(capacity, leakRate), events);
 
         for (const userId of Object.keys(limiter.buckets)) {
           const bucket = get_bucket_state(limiter, userId)!;
@@ -60,11 +63,10 @@ describe("leaky bucket properties", () => {
   it("is deterministic: replaying the same events yields the same state", () => {
     fc.assert(
       fc.property(capacityArb, leakRateArb, eventsArb, (capacity, leakRate, events) => {
-        const [first, firstAllowed] = replay(create_rate_limiter(capacity, leakRate), events);
-        const [second, secondAllowed] = replay(create_rate_limiter(capacity, leakRate), events);
+        const first = replay(create_rate_limiter(capacity, leakRate), events);
+        const second = replay(create_rate_limiter(capacity, leakRate), events);
 
         expect(second).toEqual(first);
-        expect(secondAllowed).toBe(firstAllowed);
       })
     );
   });
@@ -72,11 +74,11 @@ describe("leaky bucket properties", () => {
   it("keeps users independent regardless of interleaving", () => {
     fc.assert(
       fc.property(capacityArb, leakRateArb, eventsArb, userArb, (capacity, leakRate, events, userId) => {
-        const [interleaved] = replay(create_rate_limiter(capacity, leakRate), events);
-        const [isolated] = replay(
+        const interleaved = replay(create_rate_limiter(capacity, leakRate), events).limiter;
+        const isolated = replay(
           create_rate_limiter(capacity, leakRate),
           events.filter((event) => event.userId === userId)
-        );
+        ).limiter;
 
         expect(get_bucket_state(interleaved, userId)).toEqual(get_bucket_state(isolated, userId));
       })
@@ -94,10 +96,10 @@ describe("leaky bucket properties", () => {
         (capacity, leakRate, timestamps) => {
           const sorted = [...timestamps].sort((a, b) => a - b);
           const events = sorted.map((timestamp) => ({ userId: "alice", timestamp }));
-          const [, allowedCount] = replay(create_rate_limiter(capacity, leakRate), events);
+          const { allowed } = replay(create_rate_limiter(capacity, leakRate), events);
 
           const window = sorted.length === 0 ? 0 : sorted[sorted.length - 1]! - sorted[0]!;
-          expect(allowedCount).toBeLessThanOrEqual(capacity + leakRate * window + 1e-9);
+          expect(allowed).toBeLessThanOrEqual(capacity + leakRate * window + 1e-9);
         }
       )
     );

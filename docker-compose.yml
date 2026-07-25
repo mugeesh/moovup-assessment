@@ -1,0 +1,10 @@
+services:
+  rate-limiter:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      CAPACITY: "${CAPACITY:-5}"
+      LEAK_RATE: "${LEAK_RATE:-1.0}"
+      PORT: "3000"
+    restart: unless-stopped
