@@ -1,4 +1,9 @@
-import express, { type Express } from "express";
+import express, {
+  type Express,
+  type Request,
+  type Response,
+  type NextFunction
+} from "express";
 import swaggerUi from "swagger-ui-express";
 import {
   create_rate_limiter,
@@ -59,11 +64,31 @@ export function createServer(capacity: number, leakRate: number): Express {
   });
 
   app.get("/buckets/:userId", (req, res) => {
-    const bucket = get_bucket_state(limiter, req.params.userId, nowSeconds());
+    const raw = req.query.timestamp;
+    let timestamp = nowSeconds();
+
+    if (raw !== undefined) {
+      const parsed = typeof raw === "string" ? Number(raw) : Number.NaN;
+      if (raw === "" || !Number.isFinite(parsed)) {
+        return res.status(400).json({ error: "timestamp must be a number (Unix epoch seconds)" });
+      }
+      timestamp = parsed;
+    }
+
+    const bucket = get_bucket_state(limiter, req.params.userId, timestamp);
     if (bucket === null) {
       return res.status(404).json({ error: "user not found" });
     }
     return res.status(200).json({ user_id: req.params.userId, bucket });
+  });
+
+  app.use((_req, res) => res.status(404).json({ error: "not found" }));
+
+  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    if (err instanceof SyntaxError) {
+      return res.status(400).json({ error: "invalid JSON body" });
+    }
+    return res.status(500).json({ error: "internal server error" });
   });
 
   return app;

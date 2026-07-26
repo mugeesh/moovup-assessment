@@ -57,6 +57,49 @@ describe("REST API", () => {
     expect(res.headers["x-ratelimit-remaining"]).toBe("0");
   });
 
+  it("reports the bucket at a timestamp when one is given", async () => {
+    const app = createServer(5, 1.0);
+
+    await request(app).post("/requests").send({ user_id: "clock", timestamp: 0 });
+    await request(app).post("/requests").send({ user_id: "clock", timestamp: 0 });
+
+    const atZero = await request(app).get("/buckets/clock?timestamp=0");
+    expect(atZero.status).toBe(200);
+    expect(atZero.body.bucket.level).toBe(2);
+
+    const later = await request(app).get("/buckets/clock?timestamp=1");
+    expect(later.body.bucket.level).toBe(1);
+  });
+
+  it("rejects a non-numeric timestamp query with 400", async () => {
+    const app = createServer(5, 1.0);
+
+    await request(app).post("/requests").send({ user_id: "q", timestamp: 0 });
+    const res = await request(app).get("/buckets/q?timestamp=abc");
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns JSON, not HTML, for a malformed body", async () => {
+    const app = createServer(5, 1.0);
+
+    const res = await request(app)
+      .post("/requests")
+      .set("content-type", "application/json")
+      .send("{bad json");
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("invalid JSON body");
+  });
+
+  it("returns JSON for an unknown route", async () => {
+    const app = createServer(5, 1.0);
+    const res = await request(app).get("/nope");
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe("not found");
+  });
+
   it("reports a bucket that has drained since the last request", async () => {
     const app = createServer(5, 1.0);
 

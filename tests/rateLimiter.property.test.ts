@@ -9,7 +9,7 @@ import {
 
 const capacityArb = fc.integer({ min: 1, max: 20 });
 const leakRateArb = fc.double({ min: 0.1, max: 5, noNaN: true, noDefaultInfinity: true });
-const userArb = fc.constantFrom("alice", "bob", "carol");
+const userArb = fc.constantFrom("user_test1", "user_test2", "user_test3");
 
 const eventArb = fc.record({
   userId: userArb,

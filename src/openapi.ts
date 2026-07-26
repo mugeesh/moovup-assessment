@@ -62,13 +62,20 @@ export const openapiSpec = {
       get: {
         summary: "Get bucket state for a user",
         description:
-          "Returns the bucket as it stands at the time of the call, with elapsed leaking applied.",
+          "Returns the bucket with elapsed leaking applied. Defaults to server time; pass a timestamp to read it on the same clock used when posting requests.",
         parameters: [
           {
             name: "userId",
             in: "path",
             required: true,
             schema: { type: "string" }
+          },
+          {
+            name: "timestamp",
+            in: "query",
+            required: false,
+            description: "Unix epoch seconds; defaults to server time.",
+            schema: { type: "number" }
           }
         ],
         responses: {
@@ -77,6 +84,14 @@ export const openapiSpec = {
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/BucketResult" }
+              }
+            }
+          },
+          "400": {
+            description: "Invalid timestamp",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Error" }
               }
             }
           },
